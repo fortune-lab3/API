@@ -1,5 +1,4 @@
-python-3.11
 streamlit
 huggingface_hub
 httpx
-docx
+python-docx
