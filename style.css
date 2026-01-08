@@ -13,7 +13,7 @@ button{
 
 .stApp h1 {
     text-align: center;
-    font-size: 5rem;
+    font-size: 3rem;
 }
 
 /* 枠の中 */
@@ -67,6 +67,20 @@ div[data-testid="stButton"] p {
     font-weight: bold;
 }
 
+/* ロゴを中央寄せ */
+.logo-container {
+    text-align: center;
+    margin-bottom: 1.5rem;
+}
+
+/* ライトモード：黒ロゴを表示、白ロゴを隠す */
+.logo-light {
+    display: inline-block;
+}
+.logo-dark {
+    display: none;
+}
+
 @media (prefers-color-scheme: light) {
     div[data-testid="stButton"] button {
         background-color: #7cfad2;
@@ -92,6 +106,12 @@ div[data-testid="stButton"] p {
     div[data-testid="stButton"] button:hover {
         color: #EAEAEA;
         background-color: #fb7474;
+    }
+    .logo-light {
+        display: none;
+    }
+    .logo-dark {
+        display: inline-block;
     }
 }
 

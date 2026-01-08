@@ -14,6 +14,13 @@ def load_css(path: str):
         css = f.read()
     st.markdown(f"<style>{css}</style>", unsafe_allow_html=True)
 
+def load_base64_image(path):
+    with open(path, "rb") as f:
+        data = f.read()
+    return base64.b64encode(data).decode()
+logo_light = load_base64_image("logo_black.PNG")
+logo_dark = load_base64_image("logo_white.PNG")
+
 # 前処理
 def remove_strings(text: str) -> str:
     pattern = re.compile(r'【.*?】|[ＲR][ー-]\d+|\n|\t|\s+|■|＊')
@@ -25,8 +32,24 @@ def normalize_output(text: str) -> str:
     #text = re.sub(r"[a-zA-Z]+", "", text)
     return text.replace("\n", "").replace("\r", "").strip()
 
+# 文字数
 def count_chars(text: str) -> int:
     return len((text or "").replace("\n", "").replace("\r", ""))
+
+def update_char_count():
+    text = st.session_state.get("edited_ad", "")
+    st.session_state["current_char_count"] = len(
+        text.replace("\n", "").replace("\r", "")
+    )
+
+# Word保存
+def create_docx_bytes(text):
+    doc = Document()
+    doc.add_paragraph(text)
+    buf = io.BytesIO()
+    doc.save(buf)
+    buf.seek(0)
+    return buf
 
 # HF 呼び出し
 def _extract_message_text(choice) -> str:
@@ -73,6 +96,31 @@ def finalize_ad(text: str, target_chars: int) -> str:
     # 句点がなければ強制
     return cut[:-1] + "。"
 
+def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, temperature):
+    length = len(ad)
+    if length == target_chars and ad.endswith("。"):
+        return ad
+
+    prompt = (
+        f"次の文章を、意味を変えずに自然な広告文として整形してください。\n"
+        f"len()で数えて {target_chars} 文字ちょうどにしてください。\n"
+        f"【条件】日本語のみ／固有名詞禁止／改行なし／文末は「。」\n\n"
+        f"【元の文章（{length}文字）】\n{ad}\n\n"
+        f"【修正後】"
+    )
+
+    new_ad = _call_chat(
+        client,
+        [
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": prompt},
+        ],
+        max_tokens=max_tokens,
+        temperature=temperature,
+    )
+
+    return normalize_output(new_ad) if new_ad else ad
+
 # キーワード指定
 def build_keyword_instruction(keywords: str):
     words = [w for w in re.split(r"[ 　]+", keywords.strip()) if w]
@@ -112,10 +160,11 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
             f"・固有名詞禁止\n"
             f"・改行なし\n"
             f"・文末は「。」\n"
-            f"・文字数は {target_chars + 30} 文字以上でもよい\n\n"
+            f"・文章は {target_chars} トークン程度で書く\n\n"
             f"・読者が『この番組を見てみたい』と思うように書く\n"
             f"・番組の魅力を簡潔にまとめる\n"
             f"・最後に視聴を促す一言を入れる\n"
+            f"・テレビの放送時間帯は昼なので「今夜」とは書かない\n"
             f"{tone_inst}\n"
             f"{keyword_inst}\n\n"
             f"【原稿】\n{cleaned}\n\n【広告文】"
@@ -125,25 +174,11 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
     )
 
     ad = normalize_output(ad)
-    ad = finalize_ad(ad, target_chars)
+    # ここで LLM による文字数調整を1回だけ行う
+    system_prompt = "あなたは広告文の整形専門家です。"
+    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2.5) + 200, temperature=temperature,)
+    #ad = finalize_ad(ad, target_chars)
     return ad
-
-# Word保存
-def create_docx_bytes(text):
-    doc = Document()
-    doc.add_paragraph(text)
-    buf = io.BytesIO()
-    doc.save(buf)
-    buf.seek(0)
-    return buf
-
-# 履歴保存
-def make_history_label(option: str, text: str, uploadfile=None) -> str:
-    if option == "ファイル" and uploadfile is not None:
-        return f"{uploadfile.name}"
-    else:
-        head = normalize_output(text)[:10]
-        return f"{head}…"
 
 # Streamlit UI
 def main():
@@ -151,13 +186,14 @@ def main():
     
     if "current_ad" not in st.session_state:
         st.session_state["current_ad"] = ""
-
-    # 履歴保持
-    if "history" not in st.session_state:
-        st.session_state["history"] = []
-
-    st.title("広告生成")
+    if "edited_ad" not in st.session_state:
+        st.session_state["edited_ad"] = ""
+    if "current_char_count" not in st.session_state:
+        st.session_state["current_char_count"] = 0
     
+    st.markdown(
+        f'''<div class="logo-container"><img src="data:image/png;base64,{logo_light}" class="logo-light"><img src="data:image/png;base64,{logo_dark}" class="logo-dark"></div>''', unsafe_allow_html=True)
+
     option = st.sidebar.radio("入力方法を選択", ("テキスト", "ファイル"))
     text = ""
 
@@ -173,7 +209,6 @@ def main():
                 elif uploadfile.name.endswith(".docx"):
                     doc = Document(uploadfile)
                     text = "\n".join([p.text for p in doc.paragraphs])
-                # st.success("ファイルを読み込みました")
             except Exception as e:
                 st.error(f"ファイルの読み込みに失敗しました: {e}")
                 text = ""
@@ -191,12 +226,6 @@ def main():
     filename = st.sidebar.text_input("保存するファイル名", value="newspaper")
     ext = st.sidebar.radio("保存形式", [".txt", ".docx"], horizontal=True)
     download = filename + ext
-    
-    # 履歴    
-    st.sidebar.subheader("履歴")
-    for item in st.session_state["history"]:
-        with st.sidebar.expander(item["label"]):
-            st.write(item["content"])
 
     # 要約生成    
     if st.button("広告文を生成"):
@@ -205,43 +234,28 @@ def main():
                 st.warning("原稿を入力してください。")
             else:
                 with st.spinner("広告文を生成中..."):
-                    ad = generate_newspaper_ad_api(
-                        text=text,
-                        target_chars=target_chars,
-                        keywords=keywords,
-                        tone=tone
-                    )
-                    label = make_history_label(
-                        option,
-                        text,
-                        uploadfile if option == "ファイル" else None
-                    )
+                    ad = generate_newspaper_ad_api(text=text, target_chars=target_chars, keywords=keywords, tone=tone)
 
                     st.session_state["current_ad"] = ad
-                    st.session_state["history"].insert(
-                        0,
-                        {
-                            "label": label,
-                            "content": ad
-                        }
-                    )
-                    st.session_state["history"] = st.session_state["history"][:5]
+                    st.session_state["edited_ad"] = ad
+                    st.session_state["current_char_count"] = len(ad)
        
         except Exception as e:
             st.error(f"エラーが発生しました: {e}")
 
     # ダウンロードボタン
     if st.session_state["current_ad"]:
-        st.text_area("生成された広告文", st.session_state["current_ad"], height=200)
-        st.markdown(f"文字数：{len(st.session_state['current_ad'])} 文字")
+        st.text_area("生成結果", key="edited_ad", on_change=update_char_count, height=200)
+        st.markdown(f"文字数：{st.session_state['current_char_count']} 文字")
                 
+        final_text = st.session_state["edited_ad"]
         if ext == ".docx":
-            file_data = create_docx_bytes(st.session_state["current_ad"])
+            file_data = create_docx_bytes(final_text)
             mime = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
         else:
-            file_data = st.session_state["current_ad"]
+            file_data = final_text
             mime = "text/plain"
-            
+  
         st.download_button(
             label="ダウンロード",
             data=file_data,
