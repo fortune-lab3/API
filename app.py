@@ -29,6 +29,9 @@ def remove_strings(text: str) -> str:
 def normalize_output(text: str) -> str:
     text = (text or "").strip()
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
+    text = re.sub(r"\s+", "", text)
+    text = text.replace("\u3000", "")
+    text = text.replace("\xa0", "")
     #text = re.sub(r"[a-zA-Z]+", "", text)
     return text.replace("\n", "").replace("\r", "").strip()
 
@@ -77,36 +80,47 @@ def _call_chat(client, messages, max_tokens, temperature):
     return ""
 
 # 文字数厳格化
-def finalize_ad(text: str, target_chars: int) -> str:
-    text = normalize_output(text)
+def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, temperature, keywords):
+    ad = normalize_output(ad)
+    current_len = len(ad)
+    diff = target_chars - current_len
+    kw_list = split_keywords(keywords)
+    kw_text = "、".join(kw_list)
+    kw_constraint = ""
+    if kw_list:
+        kw_constraint = (
+            f"次のキーワードは必ずすべてそのまま残してください：{kw_text}\n"
+            f"これらの削除・言い換え・表記変更は禁止です。\n"
+        )
 
-    # 句点保証
-    if not text.endswith("。"):
-        text += "。"
-
-    if len(text) <= target_chars:
-        return text
-
-    # 長い → 文末優先でカット
-    cut = text[:target_chars]
-    for i in range(len(cut) - 1, -1, -1):
-        if cut[i] == "。":
-            return cut[:i + 1]
-
-    # 句点がなければ強制
-    return cut[:-1] + "。"
-
-def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, temperature):
-    length = len(ad)
-    if length == target_chars and ad.endswith("。"):
+    if diff <= 5 and diff >= -5 and ad.endswith("。"):
         return ad
 
+    if diff > 5:
+        adjust_instruction = (
+            f"現在 {current_len}文字なので、{diff} 文字分だけ内容を自然に補ってください。"
+            #f"新しい情報は追加せず、表現の言い換えや補足で調整してください。"
+        )
+    else:
+        adjust_instruction = (
+            f"現在 {current_len}文字なので、{abs(diff)} 文字分だけ内容を自然に削ってください。"
+            f"重要な意味は残し、言い換えや冗長表現の削除で調整してください。"
+        )
+
     prompt = (
-        f"次の文章を、意味を変えずに自然な広告文として整形してください。\n"
-        f"len()で数えて {target_chars} 文字ちょうどにしてください。\n"
-        f"【条件】日本語のみ／固有名詞禁止／改行なし／文末は「。」\n\n"
-        f"【元の文章（{length}文字）】\n{ad}\n\n"
-        f"【修正後】"
+        f"{adjust_instruction}\n"
+        f"【条件】\n"
+        f"・日本語のみ\n"
+        f"・改行なし\n"
+        f"・文末は「。」\n"
+        f"{kw_constraint}"
+        f"・応募やプレゼントキャンペーンについては書かない\n"
+        f"・番組の魅力を簡潔にまとめる\n"
+        f"・事実ベースで具体的に書く\n"
+        f"・誰が、どこで、何を紹介する番組かが分かる文章にする\n"
+        f"・これは広告文であるということを意識してください\n"
+        f"【元の文章（現在{current_len}文字）】\n{ad}\n\n"
+        f"【整形後（{target_chars}文字ちょうど）】"
     )
 
     new_ad = _call_chat(
@@ -122,8 +136,11 @@ def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, tempe
     return normalize_output(new_ad) if new_ad else ad
 
 # キーワード指定
+def split_keywords(keywords: str):
+    return [w for w in re.split(r"[ 　]+", keywords.strip()) if w]
+
 def build_keyword_instruction(keywords: str):
-    words = [w for w in re.split(r"[ 　]+", keywords.strip()) if w]
+    words = split_keywords(keywords)
     if not words:
         return ""
     return f"以下のキーワードを必ずすべて1回以上含めてください。絶対に省略しないでください。文章の自然な位置に挿入してください：" + "、".join(words) + "。"
@@ -132,9 +149,10 @@ def build_keyword_instruction(keywords: str):
 def build_tone_instruction(tone: str) -> str:
     if tone == "やさしい":
         return (
-            "・小学生でもすぐ理解できる、やさしい言葉を使う\n"
-            "・難しい言葉や専門用語は使わない\n"
-            "・一文を短めにして素直な文にする\n"
+            "・小学生向け新聞のように、やさしい言葉だけを使う\n"
+            "・文を短くし、主語を明確にする\n"
+            "・むずかしい言葉は必ず言い換える\n"
+            "・読み手に話しかけるような、親しみのある表現にする\n"
         )
     else:
         return (
@@ -155,16 +173,16 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
     ad = _call_chat(
         client,
         [{"role": "user", "content": (
-            f"次の原稿をもとに、テレビ番組の視聴を促す新聞広告文を作成してください。\n"
+            f"次の原稿をもとに、新聞のテレビ欄向け広告文を作成してください。\n"
             f"・日本語のみ\n"
-            f"・固有名詞禁止\n"
             f"・改行なし\n"
             f"・文末は「。」\n"
-            f"・文章は {target_chars} トークン程度で書く\n\n"
-            f"・読者が『この番組を見てみたい』と思うように書く\n"
+            f"・文章は、len()で数えて「{target_chars}文字ちょうど」に必ず合わせます。\n"
+            f"・応募やプレゼントキャンペーンについては書かない\n"
             f"・番組の魅力を簡潔にまとめる\n"
-            f"・最後に視聴を促す一言を入れる\n"
-            f"・テレビの放送時間帯は昼なので「今夜」とは書かない\n"
+            f"・事実ベースで具体的に書く\n"
+            f"・誰が、どこで、何を紹介する番組かが分かる文章にする\n"
+            f"・これは広告文であるということを意識してください\n"
             f"{tone_inst}\n"
             f"{keyword_inst}\n\n"
             f"【原稿】\n{cleaned}\n\n【広告文】"
@@ -174,10 +192,10 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
     )
 
     ad = normalize_output(ad)
-    # ここで LLM による文字数調整を1回だけ行う
+    # 文字数調整
     system_prompt = "あなたは広告文の整形専門家です。"
-    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2.5) + 200, temperature=temperature,)
-    #ad = finalize_ad(ad, target_chars)
+    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2.5) + 200, temperature=temperature, keywords=keywords)
+
     return ad
 
 # Streamlit UI
@@ -192,7 +210,7 @@ def main():
         st.session_state["current_char_count"] = 0
     
     st.markdown(
-        f'''<div class="logo-container"><img src="data:image/png;base64,{logo_light}" class="logo-light"><img src="data:image/png;base64,{logo_dark}" class="logo-dark"></div>''', unsafe_allow_html=True)
+        f'<div class="logo-container"><img src="data:image/png;base64,{logo_light}" class="logo-light"><img src="data:image/png;base64,{logo_dark}" class="logo-dark"></div>', unsafe_allow_html=True)
 
     option = st.sidebar.radio("入力方法を選択", ("テキスト", "ファイル"))
     text = ""
@@ -214,7 +232,7 @@ def main():
                 text = ""
 
     # 文字数指定
-    target_chars = st.sidebar.number_input("文字数", min_value=10, max_value=500, value=120, step=1)
+    target_chars = st.sidebar.number_input("文字数", min_value=10, max_value=500, value=100, step=1)
     
     # 文章表現選択
     tone = st.sidebar.radio("文章のスタイル", ["かたい", "やさしい"], horizontal=True)
