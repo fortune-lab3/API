@@ -23,15 +23,12 @@ logo_dark = load_base64_image("logo_white.PNG")
 
 # 前処理
 def remove_strings(text: str) -> str:
-    pattern = re.compile(r'【.*?】|[ＲR][ー-]\d+|\n|\t|\s+|■|＊')
+    pattern = re.compile(r'【.*?】|[ＲR][ー-]\d+|■|＊')
     return pattern.sub('', text or "")
 
 def normalize_output(text: str) -> str:
     text = (text or "").strip()
     text = re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL)
-    text = re.sub(r"\s+", "", text)
-    text = text.replace("\u3000", "")
-    text = text.replace("\xa0", "")
     #text = re.sub(r"[a-zA-Z]+", "", text)
     return text.replace("\n", "").replace("\r", "").strip()
 
@@ -80,12 +77,12 @@ def _call_chat(client, messages, max_tokens, temperature):
     return ""
 
 # 文字数厳格化
-def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, temperature, keywords):
+def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, temperature, keywords, tone):
     ad = normalize_output(ad)
-    current_len = len(ad)
-    diff = target_chars - current_len
+    tone_inst = build_tone_instruction(tone)
     kw_list = split_keywords(keywords)
     kw_text = "、".join(kw_list)
+
     kw_constraint = ""
     if kw_list:
         kw_constraint = (
@@ -93,47 +90,44 @@ def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, tempe
             f"これらの削除・言い換え・表記変更は禁止です。\n"
         )
 
-    if diff <= 5 and diff >= -5 and ad.endswith("。"):
-        return ad
+    for _ in range(2):
+        current_len = len(ad)
+        diff = target_chars - current_len
 
-    if diff > 5:
-        adjust_instruction = (
-            f"現在 {current_len}文字なので、{diff} 文字分だけ内容を自然に補ってください。"
-            #f"新しい情報は追加せず、表現の言い換えや補足で調整してください。"
+        if abs(diff) <= 5 and ad.endswith("。"):
+            return ad
+
+        if diff > 0:
+            adjust_instruction = f"現在 {current_len}文字なので、{diff} 文字分だけ内容を自然に補ってください。"
+        else:
+            adjust_instruction = f"現在 {current_len}文字なので、{abs(diff)} 文字分だけ内容を自然に削ってください。"
+
+        prompt = (
+            f"次の文章の意味と構成をできるだけ変えずに、文字数だけを調整してください。\n"
+            f"{kw_constraint}"
+            f"{tone_inst}"
+            f"{adjust_instruction}\n"
+            f"文字数が {target_chars} ±5 の範囲に入っていない場合は、必ず文章を修正して再生成\n"
+            f"【元の文章】\n{ad}\n\n"
+            f"【整形後（{target_chars}文字）】"
         )
-    else:
-        adjust_instruction = (
-            f"現在 {current_len}文字なので、{abs(diff)} 文字分だけ内容を自然に削ってください。"
-            f"重要な意味は残し、言い換えや冗長表現の削除で調整してください。"
+
+        new_ad = _call_chat(
+            client,
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=max_tokens,
+            temperature=temperature,
         )
 
-    prompt = (
-        f"{adjust_instruction}\n"
-        f"【条件】\n"
-        f"・日本語のみ\n"
-        f"・改行なし\n"
-        f"・文末は「。」\n"
-        f"{kw_constraint}"
-        f"・応募やプレゼントキャンペーンについては書かない\n"
-        f"・番組の魅力を簡潔にまとめる\n"
-        f"・事実ベースで具体的に書く\n"
-        f"・誰が、どこで、何を紹介する番組かが分かる文章にする\n"
-        f"・これは広告文であるということを意識してください\n"
-        f"【元の文章（現在{current_len}文字）】\n{ad}\n\n"
-        f"【整形後（{target_chars}文字ちょうど）】"
-    )
+        if not new_ad:
+            break
 
-    new_ad = _call_chat(
-        client,
-        [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
-        ],
-        max_tokens=max_tokens,
-        temperature=temperature,
-    )
+        ad = normalize_output(new_ad)
 
-    return normalize_output(new_ad) if new_ad else ad
+    return ad
 
 # キーワード指定
 def split_keywords(keywords: str):
@@ -143,22 +137,16 @@ def build_keyword_instruction(keywords: str):
     words = split_keywords(keywords)
     if not words:
         return ""
-    return f"以下のキーワードを必ずすべて1回以上含めてください。絶対に省略しないでください。文章の自然な位置に挿入してください：" + "、".join(words) + "。"
+    return f"以下のキーワードを必ずすべて1回含めてください。絶対に省略しないでください。文章の自然な位置に挿入してください：" + "、".join(words) + "。"
 
 # 表現
 def build_tone_instruction(tone: str) -> str:
     if tone == "やさしい":
         return (
-            "・小学生向け新聞のように、やさしい言葉だけを使う\n"
-            "・文を短くし、主語を明確にする\n"
-            "・むずかしい言葉は必ず言い換える\n"
-            "・読み手に話しかけるような、親しみのある表現にする\n"
+            "小学生や外国人でもわかるように、難しい言葉を言い換える\n"
         )
     else:
-        return (
-            "・公の場に出しても問題ない表現にする\n"
-            "・誤解を招く言い方や強すぎる表現は避ける\n"
-        )
+        return ""
 
 # 広告文生成
 def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.2):
@@ -173,28 +161,28 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
     ad = _call_chat(
         client,
         [{"role": "user", "content": (
-            f"次の原稿をもとに、新聞のテレビ欄向け広告文を作成してください。\n"
-            f"・日本語のみ\n"
-            f"・改行なし\n"
-            f"・文末は「。」\n"
-            f"・文章は、len()で数えて「{target_chars}文字ちょうど」に必ず合わせます。\n"
+            f"次の原稿をもとに、新聞のラテ欄風の広告文を書いてください。\n"
+            f"文字数は日本語でちょうど {target_chars} 文字\n"
+            f"次にある文体ルールを厳密に守ってください。\n"
+            f"・文は必ず「誰が・どこで・何をするか」の形で書く\n"
+            f"・文末には視聴者の興味を引くフックを必ず入れる\n"
+            f"・感情やインパクトのある言葉を使う\n"
+            f"・季節感やテーマがあれば冒頭に入れる\n"
             f"・応募やプレゼントキャンペーンについては書かない\n"
-            f"・番組の魅力を簡潔にまとめる\n"
-            f"・事実ベースで具体的に書く\n"
-            f"・誰が、どこで、何を紹介する番組かが分かる文章にする\n"
-            f"・これは広告文であるということを意識してください\n"
+            f"【条件】日本語のみ・改行なし\n"
             f"{tone_inst}\n"
             f"{keyword_inst}\n\n"
+            #f"文字数が {target_chars} ±5 の範囲に入っていない場合は、文章を修正して再生成してください。\n"
             f"【原稿】\n{cleaned}\n\n【広告文】"
         )}],
-        max_tokens=int((target_chars + 30) * 3),
+        max_tokens=int((target_chars) * 2),
         temperature=temperature,
     )
 
     ad = normalize_output(ad)
     # 文字数調整
-    system_prompt = "あなたは広告文の整形専門家です。"
-    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2.5) + 200, temperature=temperature, keywords=keywords)
+    system_prompt = "あなたは日本語文章の文字数を正確に調整する編集者です。"
+    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2), temperature=0.1, keywords=keywords, tone=tone)
 
     return ad
 
