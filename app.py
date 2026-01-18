@@ -205,6 +205,9 @@ def main():
 
     if option == "テキスト":
         text = st.text_area("広告文にしたい原稿を入力してください", height=260)
+        text = text.strip().replace("\r", "")
+        text = text.replace("　", " ")
+        text = re.sub(r"\s+", " ", text)
 
     else:
         uploadfile = st.file_uploader("ファイルを選択", type=["txt", "docx"])
@@ -272,3 +275,4 @@ def main():
 # 実行
 if __name__ == "__main__":
     main()
+
