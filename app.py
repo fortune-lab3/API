@@ -143,7 +143,9 @@ def build_keyword_instruction(keywords: str):
 def build_tone_instruction(tone: str) -> str:
     if tone == "やさしい":
         return (
-            "小学生や外国人でもわかるように、難しい言葉を言い換える\n"
+            "・漢語（熟語）を避け、和語（訓読みの言葉）を優先して使うこと\n"
+            "・ひらがなの比率を上げ、見た目の威圧感をなくすこと\n"
+            "・専門用語や難しい概念は、身近な例えに置き換えること\n"
         )
     else:
         return ""
@@ -275,4 +277,3 @@ def main():
 # 実行
 if __name__ == "__main__":
     main()
-
