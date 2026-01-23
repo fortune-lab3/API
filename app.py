@@ -185,7 +185,7 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
     ad = normalize_output(ad)
     # 文字数調整
     system_prompt = "あなたは日本語文章の文字数を正確に調整する編集者です。"
-    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2), temperature=0.1, keywords=keywords, tone=tone)
+    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 1.2), temperature=0.1, keywords=keywords, tone=tone)
 
     return ad
 
@@ -279,3 +279,4 @@ def main():
 # 実行
 if __name__ == "__main__":
     main()
+
