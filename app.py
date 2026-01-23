@@ -140,12 +140,11 @@ def build_keyword_instruction(keywords: str):
     return (
         "【キーワードの扱いルール】\n"
         "・キーワードの意味を推測しない\n"
-        "・人名や地名として扱わない\n"
         "・ストーリー化しない\n"
         "・キーワード同士を関連づけない\n"
         "・単語として自然な位置に挿入するだけ\n"
         "・削除・言い換え・表記ゆれは禁止\n"
-        f"以下のキーワードを必ずすべて1回含めてください：{ '、'.join(words) }。"
+        f"以下のキーワードを必ずすべて1回だけ含めること：{ '、'.join(words) }。"
     )
 
 # 表現
@@ -194,7 +193,7 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
     ad = normalize_output(ad)
     # 文字数調整
     system_prompt = "あなたは日本語文章の文字数を正確に調整する編集者です。"
-    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 1.2), temperature=0.1, keywords=keywords, tone=tone)
+    ad = finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens=int(target_chars * 2), temperature=0.1, keywords=keywords, tone=tone)
 
     return ad
 
