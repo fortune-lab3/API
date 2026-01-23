@@ -137,7 +137,16 @@ def build_keyword_instruction(keywords: str):
     words = split_keywords(keywords)
     if not words:
         return ""
-    return f"以下のキーワードを必ずすべて1回含めてください。絶対に省略しないでください。文章の自然な位置に挿入してください：" + "、".join(words) + "。"
+    return (
+        "【キーワードの扱いルール】\n"
+        "・キーワードの意味を推測しない\n"
+        "・人名や地名として扱わない\n"
+        "・ストーリー化しない\n"
+        "・キーワード同士を関連づけない\n"
+        "・単語として自然な位置に挿入するだけ\n"
+        "・削除・言い換え・表記ゆれは禁止\n"
+        f"以下のキーワードを必ずすべて1回含めてください：{ '、'.join(words) }。"
+    )
 
 # 表現
 def build_tone_instruction(tone: str) -> str:
@@ -178,7 +187,7 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
             f"生成文のみを出力・捕捉などは出力しない\n"
             f"【原稿】\n{cleaned}\n\n【広告文】"
         )}],
-        max_tokens=int((target_chars) * 2),
+        max_tokens=int((target_chars) * 1.2),
         temperature=temperature,
     )
 
@@ -279,4 +288,3 @@ def main():
 # 実行
 if __name__ == "__main__":
     main()
-
