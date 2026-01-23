@@ -199,7 +199,7 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
 
 # Streamlit UI
 def main():
-    st.set_page_config(page_title="南海ことば工房", page_icon="img/favicon.PNG")
+    st.set_page_config(page_title="南海ことば工房", page_icon="img/favicon.JPG")
     load_css("style.css")
     
     if "current_ad" not in st.session_state:
