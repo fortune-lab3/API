@@ -18,8 +18,8 @@ def load_base64_image(path):
     with open(path, "rb") as f:
         data = f.read()
     return base64.b64encode(data).decode()
-logo_light = load_base64_image("logo_black.PNG")
-logo_dark = load_base64_image("logo_white.PNG")
+logo_light = load_base64_image("img/logo_black.PNG")
+logo_dark = load_base64_image("img/logo_white.PNG")
 
 # 前処理
 def remove_strings(text: str) -> str:
@@ -175,6 +175,7 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
             f"{tone_inst}\n"
             f"{keyword_inst}\n\n"
             #f"文字数が {target_chars} ±5 の範囲に入っていない場合は、文章を修正して再生成してください。\n"
+            f"生成文のみを出力・捕捉などは出力しない\n"
             f"【原稿】\n{cleaned}\n\n【広告文】"
         )}],
         max_tokens=int((target_chars) * 2),
@@ -190,6 +191,7 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
 
 # Streamlit UI
 def main():
+    st.set_page_config(page_title="南海ことば工房", page_icon="img/favicon.PNG")
     load_css("style.css")
     
     if "current_ad" not in st.session_state:
