@@ -104,7 +104,7 @@ def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, tempe
 
         prompt = (
             f"次の文章の意味と構成をできるだけ変えずに、文字数だけを調整してください。\n"
-            f"{kw_constraint}"
+            #f"{kw_constraint}"
             f"{tone_inst}"
             f"{adjust_instruction}\n"
             f"文字数が {target_chars} ±5 の範囲に入っていない場合は、必ず文章を修正して再生成\n"
@@ -141,7 +141,7 @@ def build_keyword_instruction(keywords: str):
         "【キーワード制約】\n"
         "・以下のキーワードを、文章中に必ず一度だけ使用してください。\n"
         "・同じキーワードを二回以上使うことは絶対に禁止します。\n"
-        "・文章として成り立つようにしてください\n"
+        "・自然な文章として成り立つようにしてください\n"
         f"・対象キーワード: { '、'.join(words) }\n"
     )
 
