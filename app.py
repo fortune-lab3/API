@@ -86,8 +86,7 @@ def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, tempe
     kw_constraint = ""
     if kw_list:
         kw_constraint = (
-            f"次のキーワードは既に文章に含まれています。削除せず、そのまま残してください：{kw_text}\n"
-            f"これらの削除・言い換え・表記変更は禁止です。\n"
+            f"次のキーワードは既に文章に含まれている。追加・削除は絶対にせず、そのまま残す：{kw_text}\n"
         )
 
     for _ in range(2):
@@ -139,7 +138,7 @@ def build_keyword_instruction(keywords: str):
         return ""
     return (
         "【キーワード制約】\n"
-        "・以下の語句を、文章中に必ず一度だけ使用してください。\n"
+        "・以下のキーワードを、文章中に必ず一度だけ使用してください。\n"
         "・同じキーワードを二回以上使うことは絶対に禁止します。\n"
         f"・対象キーワード: { '、'.join(words) }\n"
     )
