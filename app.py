@@ -138,10 +138,9 @@ def build_keyword_instruction(keywords: str):
     if not words:
         return ""
     return (
-        "【キーワード制約】\n"
         "・以下のキーワードを、文章中に必ず一度だけ使用してください。\n"
         "・同じキーワードを二回以上使うことは絶対に禁止します。\n"
-        "・自然な文章として成り立つようにしてください\n"
+        "・文章の自然な位置に挿入してください\n"
         f"・対象キーワード: { '、'.join(words) }\n"
     )
 
