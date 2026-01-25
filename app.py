@@ -80,14 +80,7 @@ def _call_chat(client, messages, max_tokens, temperature):
 def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, temperature, keywords, tone):
     ad = normalize_output(ad)
     tone_inst = build_tone_instruction(tone)
-    kw_list = split_keywords(keywords)
-    kw_text = "、".join(kw_list)
-
-    kw_constraint = ""
-    if kw_list:
-        kw_constraint = (
-            f"次のキーワードは既に文章に含まれている。追加・削除は絶対にせず、そのまま残す：{kw_text}\n"
-        )
+    keyword_inst = build_keyword_instruction(keywords)
 
     for _ in range(2):
         current_len = len(ad)
@@ -103,7 +96,7 @@ def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, tempe
 
         prompt = (
             f"次の文章の意味と構成をできるだけ変えずに、文字数だけを調整してください。\n"
-            f"{kw_constraint}"
+            f"{keyword_inst}\n\n"
             f"{tone_inst}"
             f"{adjust_instruction}\n"
             f"文字数が {target_chars} ±5 の範囲に入っていない場合は、必ず文章を修正して再生成\n"
