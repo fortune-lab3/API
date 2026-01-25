@@ -107,6 +107,7 @@ def finalize_with_llm(client, system_prompt, ad, target_chars, max_tokens, tempe
             f"{tone_inst}"
             f"{adjust_instruction}\n"
             f"文字数が {target_chars} ±5 の範囲に入っていない場合は、必ず文章を修正して再生成\n"
+            f"生成文のみを出力・捕捉などは出力しない\n"
             f"【元の文章】\n{ad}\n\n"
             f"【整形後（{target_chars}文字）】"
         )
@@ -178,7 +179,6 @@ def generate_newspaper_ad_api(text, target_chars, keywords, tone, temperature=0.
             f"{tone_inst}\n"
             f"{keyword_inst}\n\n"
             #f"文字数が {target_chars} ±5 の範囲に入っていない場合は、文章を修正して再生成してください。\n"
-            f"生成文のみを出力・捕捉などは出力しない\n"
             f"【原稿】\n{cleaned}\n\n【広告文】"
         )}],
         max_tokens=int((target_chars) * 1.2),
