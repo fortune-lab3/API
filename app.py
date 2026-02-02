@@ -5,7 +5,12 @@ from httpx import ConnectTimeout, ReadTimeout, HTTPError
 from docx import Document
 
 # Hugging Face 設定
-HF_TOKEN = os.getenv("HUGGINGFACEHUB_API_TOKEN", "")
+import streamlit as st
+if "HUGGINGFACEHUB_API_TOKEN" in st.secrets:
+    HF_TOKEN = st.secrets["HUGGINGFACEHUB_API_TOKEN"]
+else:
+    HF_TOKEN = ""
+    st.error("Secretsにトークンが設定されていません。")
 MODEL_ID = "Qwen/Qwen3-4B-Instruct-2507"
 
 # CSS
