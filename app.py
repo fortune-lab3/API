@@ -154,6 +154,7 @@ def generate_advertisement(text, target_length, keywords, tone, temperature=0.2)
         f"【条件】日本語のみ・改行なし\n"
         f"{tone_txt}"
         f"{keyword_txt}\n"
+        f"文字数が {target_length} ±5 の範囲に入っていない場合は、文章を修正して再生成してください。\n"
         f"【原稿】\n{cleaned}\n\n【広告文】"
     )
 
