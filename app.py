@@ -7,7 +7,7 @@ from docx import Document
 # Gemini 設定
 # ==============================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL_ID = "models/gemini-2.5-flash-lite"
+MODEL_ID = "models/gemini-2.0-flash-lite"
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
