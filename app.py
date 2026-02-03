@@ -7,7 +7,7 @@ from docx import Document
 # Gemini 設定
 # ==============================
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY", "")
-MODEL_ID = "models/gemini-1.5-flash"
+MODEL_ID = "models/gemini-2.0-flash-lite"
 
 if GEMINI_API_KEY:
     genai.configure(api_key=GEMINI_API_KEY)
@@ -79,7 +79,7 @@ def gemini_chat(prompt, temperature=0.2, max_tokens=512):
     return res.text.strip()
 
 # ==============================
-# トーン / キーワード
+# キーワード / トーン
 # ==============================
 def split_keywords(keywords: str):
     return [w for w in re.split(r"[ 　]+", keywords.strip()) if w]
@@ -90,14 +90,16 @@ def build_keyword(keywords: str):
         return ""
     return (
         f"・キーワード指定: { '、'.join(words) }\n"
-        "・各キーワードは文章中に1回だけ使用\n"
+        "・各キーワードは文章中に絶対に1回だけ\n"
+        "・キーワードが文の繋がりを邪魔しないよう、自然に組み込んでください。\n"
     )
 
 def build_tone(tone: str) -> str:
     if tone == "やわらかい":
         return (
-            "・和語を優先し、ひらがな多め\n"
-            "・やさしく親しみのある表現\n"
+            "・漢語（熟語）を避け、和語（訓読みの言葉）を優先して使うこと\n"
+            "・ひらがなの比率を上げ、見た目の威圧感をなくすこと\n"
+            "・専門用語や難しい概念は、身近な例えに置き換えること\n"
         )
     return ""
 
@@ -106,53 +108,70 @@ def build_tone(tone: str) -> str:
 # ==============================
 def adjust_length(ad, target_length, tone):
     ad = postprocess(ad)
+
     for _ in range(2):
         diff = target_length - len(ad)
-        if abs(diff) <= 5:
+        if abs(diff) <= 5 and ad.endswith("。"):
             return ad
 
-        cmd = "補って" if diff > 0 else "削って"
+        cmd = "補ってください" if diff > 0 else "削ってください"
+
         prompt = (
-            "次の文章を意味を変えずに文字数だけ調整してください。\n"
+            "次の文章の意味と構成をできるだけ変えずに、"
+            "文字数だけを調整してください。\n"
             f"{tone}"
-            f"現在 {len(ad)} 文字 → {target_length} 文字に{cmd}\n"
-            "文章のみ出力\n\n"
-            f"【文章】{ad}"
+            f"現在 {len(ad)}文字 → {target_length}文字に{cmd}\n"
+            "生成文のみを出力してください。\n\n"
+            f"【元の文章】{ad}"
         )
-        ad = postprocess(gemini_chat(prompt, temperature=0.1))
+
+        ad = postprocess(
+            gemini_chat(prompt, temperature=0.1, max_tokens=int(target_length * 1.2))
+        )
+
     return ad
 
 # ==============================
 # 広告生成
 # ==============================
-def generate_advertisement(text, target_length, keywords, tone):
+def generate_advertisement(text, target_length, keywords, tone, temperature=0.2):
     if not GEMINI_API_KEY:
-        raise RuntimeError("GEMINI_API_KEY が設定されていません")
+        raise RuntimeError("GEMINI_API_KEY が設定されていません。")
 
     cleaned = preprocess(text)
     tone_txt = build_tone(tone)
     keyword_txt = build_keyword(keywords)
 
     prompt = (
-        "新聞のラテ欄風の広告文を書いてください。\n"
-        f"文字数はちょうど {target_length} 文字\n"
-        "改行なし、日本語のみ\n"
-        "文末に興味を引くフックを入れる\n"
+        f"次の原稿をもとに、新聞のラテ欄風の広告文を書いてください。\n"
+        f"文字数は日本語でちょうど {target_length} 文字\n"
+        f"次にある文体ルールを厳密に守ってください。\n"
+        f"・文の主語・場所・行動が明確になるように書くこと\n"
+        f"・文末には視聴者の興味を引くフックを必ず入れる\n"
+        f"・感情やインパクトのある言葉を使う\n"
+        f"・季節感やテーマがあれば冒頭に入れる\n"
+        f"・応募やプレゼントキャンペーンについては書かない\n"
+        f"【条件】日本語のみ・改行なし\n"
         f"{tone_txt}"
-        f"{keyword_txt}\n\n"
-        f"【原稿】{cleaned}\n\n【広告文】"
+        f"{keyword_txt}\n"
+        f"【原稿】\n{cleaned}\n\n【広告文】"
     )
 
-    ad = gemini_chat(prompt, temperature=0.2, max_tokens=int(target_length * 1.5))
+    ad = gemini_chat(
+        prompt,
+        temperature=temperature,
+        max_tokens=int(target_length * 1.5),
+    )
+
     ad = postprocess(ad)
     #ad = adjust_length(ad, target_length, tone_txt)
     return ad
 
 # ==============================
-# UI
+# Streamlit UI
 # ==============================
 def main():
-    st.set_page_config(page_title="南海ことば工房")
+    st.set_page_config(page_title="南海ことば工房", page_icon="img/favicon.JPG")
     load_css("style.css")
     init_session_state()
 
@@ -164,28 +183,53 @@ def main():
         unsafe_allow_html=True,
     )
 
-    text = st.text_area("広告文にしたい原稿", height=260)
+    option = st.sidebar.radio("入力方法を選択", ("テキスト", "ファイル"))
+    text = ""
+
+    if option == "テキスト":
+        text = st.text_area("広告文にしたい原稿を入力してください", height=260)
+        text = re.sub(r"\s+", " ", text.strip())
+
+    else:
+        uploadfile = st.file_uploader("ファイルを選択", type=["txt", "docx"])
+        if uploadfile:
+            if uploadfile.name.endswith(".txt"):
+                text = uploadfile.read().decode("utf-8", errors="ignore")
+            else:
+                doc = Document(uploadfile)
+                text = "\n".join(p.text for p in doc.paragraphs)
 
     target_length = st.sidebar.number_input("文字数", 10, 500, 100)
-    tone = st.sidebar.radio("文章スタイル", ["かたい", "やわらかい"])
-    keywords = st.sidebar.text_input("キーワード（スペース区切り）")
+    tone = st.sidebar.radio("文章のスタイル", ["かたい", "やわらかい"], horizontal=True)
+    keywords = st.sidebar.text_input("キーワード指定（スペース区切り）")
+
+    filename = st.sidebar.text_input("保存するファイル名", "newspaper")
+    ext = st.sidebar.radio("保存形式", [".txt", ".docx"], horizontal=True)
 
     if st.button("広告文を生成"):
-        with st.spinner("生成中..."):
+        with st.spinner("広告文を生成中..."):
             ad = generate_advertisement(text, target_length, keywords, tone)
             st.session_state["current_ad"] = ad
             st.session_state["edited_ad"] = ad
             st.session_state["current_char_count"] = len(ad)
 
     if st.session_state["current_ad"]:
-        st.text_area("生成結果", key="edited_ad", on_change=realtime_count)
-        st.markdown(f"文字数：{st.session_state['current_char_count']}")
+        st.text_area("生成結果", key="edited_ad", on_change=realtime_count, height=200)
+        st.markdown(f"文字数：{st.session_state['current_char_count']} 文字")
+
+        data = (
+            save_docx(st.session_state["edited_ad"])
+            if ext == ".docx"
+            else st.session_state["edited_ad"]
+        )
 
         st.download_button(
             "ダウンロード",
-            st.session_state["edited_ad"],
-            "advertisement.txt",
-            "text/plain",
+            data,
+            file_name=filename + ext,
+            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+            if ext == ".docx"
+            else "text/plain",
         )
 
 if __name__ == "__main__":
