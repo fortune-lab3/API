@@ -1,7 +1,7 @@
 # 目次
-[GitHub](#githubについて)
-[Hugging Face](#hugging-face-について)
-[Streamlitshare](#streamlit-cloud-について)
+- [GitHub](#githubについて)
+- [Hugging Face](#hugging-face-について)
+- [Streamlitshare](#streamlit-cloud-について)
 
 # GitHubについて
 ## アカウント作成
@@ -51,3 +51,4 @@
 4. 枠の中に ```HUGGINGFACEHUB_API_TOKEN = "取得したAPIキー" ``` を入力
 5. 右下の **Save changes** をクリックして保存
 6. これで、作成したアプリ（pbl・main・app.py）をクリックすると使えるようになります
+7. 一定期間アクセスしなかったらアプリがスリープ状態になるので、表示される ボタンをクリックして少し待てば起動します
