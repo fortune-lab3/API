@@ -47,7 +47,7 @@
 ## APIキー設定
 1. [share.streamlit](https://share.streamlit.io/)にアクセス
 2. 作成したアプリ（pbl・main・app.py）の右端にある︙をクリックし、`Settings` をクリック
-3. 左側にある `ecrets` をクリック
+3. 左側にある `Secrets` をクリック
 4. 枠の中に以下を入力（`""` の間に、先ほど取得してコピーしたAPIキーを貼り付け）
    ```text
    HUGGINGFACEHUB_API_TOKEN = "取得したAPIキー"
