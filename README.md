@@ -57,7 +57,7 @@
 7. 一定期間アクセスしなかったらアプリがスリープ状態になるので、表示される `Yes, get this app back up!` ボタンをクリックして少し待てば起動します
 
 # APIキーと利用制限について
-[Huggingface](https://huggingface.co/settings/inference-providers/overview)の `Inference Providers` のページにて、APIキーの利用状況を確認することができる　　
-無料利用枠には使用回数やトークン数の制限があり、基本的には毎月1日の9時にリセットされる　　
-ただし、状況によっては1日後や1週間後に利用できるようになっている場合もある　　
+[Huggingface](https://huggingface.co/settings/inference-providers/overview)の `Inference Providers` のページにて、APIキーの利用状況を確認することができる  
+無料利用枠には使用回数やトークン数の制限があり、基本的には毎月1日の9時にリセットされる  
+ただし、状況によっては1日後や1週間後に利用できるようになっている場合もある  
 利用上限に達した場合の対応として、別のメールアドレスでHuggingfaceのアカウントを新規作成し、APIキーを取得するという方法がある
