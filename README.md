@@ -1,9 +1,11 @@
 # 目次
-- [GitHub](#githubについて)
-- [Hugging Face](#hugging-face-について)
-- [Streamlitshare](#streamlit-cloud-について)
-- [アプリの利用](#アプリの利用について)
-- [APIキーと利用制限](#APIキーと利用制限について)
+- 環境設定
+   - [GitHub](#githubについて)
+   - [Hugging Face](#hugging-face-について)
+   - [Streamlitshare](#streamlit-cloud-について)
+- 利用方法
+   - [アプリの利用](#アプリの利用について)
+   - [APIキーと利用制限](#APIキーと利用制限について)
 
 # GitHubについて
 ## アカウント作成
